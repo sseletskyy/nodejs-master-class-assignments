@@ -6,9 +6,20 @@
 const http = require('http')
 const https = require('https')
 const url = require('url')
-const StringDecoder = require('string_decoder').StringDecoder
+const { StringDecoder } = require('string_decoder')
 const fs = require('fs')
-const config = require('./config')
+const config = require('./lib/config')
+const handlers = require('./lib/handlers')
+const helpers = require('./lib/helpers')
+
+const router = {
+  ping: handlers.ping,
+  default: handlers.notFound,
+  hello: handlers.hello,
+  users: handlers.users,
+  tokens: handlers.tokens,
+  checks: handlers.checks,
+}
 
 // All the server logic for both http and https servers
 const unifiedServer = function(req, res) {
@@ -18,15 +29,17 @@ const unifiedServer = function(req, res) {
   // Get the path
   const path = parsedUrl.pathname
   const trimmedPath = path.replace(/^\/+|\/+$/g, '')
+  console.log('trimmedPath', trimmedPath)
 
   // Get the query string as an object
   const queryStringObj = parsedUrl.query
 
   // Get HTTP Method
   const method = req.method.toLowerCase()
+  console.log('method', method)
 
   // Get the headers as an object
-  const headers = req.headers
+  const { headers } = req
 
   // Get the payload if any
   const decoder = new StringDecoder('utf-8')
@@ -48,29 +61,27 @@ const unifiedServer = function(req, res) {
       queryStringObj,
       method,
       headers,
-      payload: buffer.join(''),
+      payload: helpers.parseJsonToObject(buffer.join('')),
     }
 
-    // Route the request to the handker soecified in the router
-    const hanlderCallBack = (statusCode, payload) => {
+    // Route the request to the handler soecified in the router
+    const handlerCallBack = (statusCode, payload) => {
       // Use the status code called back by handler, or default to 200
-      statusCode = typeof statusCode === 'number' ? statusCode : 200
+      console.log('handlerCallBack, statusCode =', statusCode, typeof statusCode)
+      const theStatusCode = typeof statusCode === 'number' ? statusCode : 200
 
       // Use the payload called bach by th handler or default to an empty object
       payload = payload || {}
 
       // COnvert the payload to a string
       const payloadString = JSON.stringify(payload)
-
-      res.setHeader('Content-Type', 'application/json')
-      res.writeHead(statusCode)
+      res.writeHead(theStatusCode, { 'Content-Type': 'application/json' })
 
       res.end(payloadString)
-      console.log(`Request statusCode: ${statusCode}, payload: ${payloadString}`)
+      // console.log(`Request statusCode: ${statusCode}, payload: ${payloadString}`)
     }
-    chosenHandler(data, hanlderCallBack)
+    chosenHandler(data, handlerCallBack)
 
-    res.end('Hi there 2')
     // Log the request path
   }
   req.on('end', endHander)
@@ -79,7 +90,7 @@ const unifiedServer = function(req, res) {
 }
 
 // Instantiate the HTTP server
-const httpServer = http.createServer(function(req, res) {
+const httpServer = http.createServer((req, res) => {
   unifiedServer(req, res)
 })
 
@@ -107,31 +118,4 @@ const httpsListener = function() {
 
 httpsServer.listen(config.httpsPort, httpsListener)
 
-// Define a request router
-
-const handlers = {}
-
-// default handler
-handlers.notFound = (data, cb) => {
-  cb(404, { message: `Path ${data.trimmedPath} is not defined` })
-}
-// Sample handler
-handlers.ping = (data, cb) => {
-  // Callback a status code, and a payload object
-  cb(200)
-}
-
-handlers.hello = (data, cb) => {
-  const queryObj = typeof data.queryStringObj === 'object' ? data.queryStringObj : {}
-  const possibleStringAry = Object.values(queryObj)
-  if (data.payload) {
-    possibleStringAry.push(data.payload)
-  }
-  cb(200, { message: `Hello ${possibleStringAry.join(' ')}` })
-}
-
-const router = {
-  ping: handlers.ping,
-  default: handlers.notFound,
-  hello: handlers.hello,
-}
+module.exports = { httpServer }
