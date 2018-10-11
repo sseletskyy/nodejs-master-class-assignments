@@ -73,12 +73,72 @@ test('Checks.post', async (t) => {
   const resCheckGetWrong = await request(HTTP_URL).get(`/checks?id=${checkBody.id}`)
   t.is(resCheckGetWrong.status, 404)
 
+  // Checks.get - wrong - incorrect checkId
+  const wrongCheckId = '22222222221111111111'
+  const resCheckGetWrong2 = await request(HTTP_URL)
+    .get(`/checks?id=${wrongCheckId}`)
+    .set({ token })
+  t.is(resCheckGetWrong2.status, 404, resCheckGetWrong2.body.Error)
+
+  // Checks.get - wrong - incorrect token
+  const wrongToken = '22222222221111111111'
+  const resCheckGetWrong3 = await request(HTTP_URL)
+    .get(`/checks?id=${checkBody.id}`)
+    .set({ token: wrongToken })
+  t.is(resCheckGetWrong3.status, 403, resCheckGetWrong3.body.Error)
+
   // Checks.get - correct
   const resCheckGet = await request(HTTP_URL)
     .get(`/checks?id=${checkBody.id}`)
     .set({ token })
   t.is(resCheckGet.status, 200, resCheckGet.body.Error)
   t.deepEqual(resCheckGet.body, checkBody)
+
+  // Checks.put - error - not optional fields
+  const checkPutWrongObj = {
+    id: checkBody.id,
+  }
+  const resCheckPutWrong = await request(HTTP_URL)
+    .put('/checks')
+    .set({ token })
+    .send(checkPutWrongObj)
+
+  t.is(resCheckPutWrong.status, 400, resCheckPutWrong.body.Error)
+  t.is(resCheckPutWrong.body.Error, 'Missing fields to update')
+
+  // Checks.put - error - incorrect token
+  const checkPutWrongObj2 = {
+    id: checkBody.id,
+    method: 'delete',
+  }
+  const resCheckPutWrong2 = await request(HTTP_URL)
+    .put('/checks')
+    .set({ token: wrongToken })
+    .send(checkPutWrongObj2)
+
+  t.is(resCheckPutWrong2.status, 403, resCheckPutWrong2.body.Error)
+  t.is(resCheckPutWrong2.body.Error, 'User is not authorized according to token in headers')
+
+  // Checks.put - correct
+  const checkPutObj = {
+    id: checkBody.id,
+    method: 'delete',
+    protocol: 'https',
+  }
+  const resCheckPut = await request(HTTP_URL)
+    .put('/checks')
+    .set({ token })
+    .send(checkPutObj)
+
+  t.is(resCheckPut.status, 200, resCheckPut.body.Error)
+  t.deepEqual(resCheckPut.body, Object.assign({}, checkBody, checkPutObj))
+
+  // Checks.delete
+  const resCheckDelete = await request(HTTP_URL)
+    .delete(`/checks?id=${checkBody.id}`)
+    .set({ token })
+
+  t.is(resCheckDelete.status, 200, resCheckDelete.body.Error)
 
   //   Users.delete
   const resUsersDelete = await request(HTTP_URL)
